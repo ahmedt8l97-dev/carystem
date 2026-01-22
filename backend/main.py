@@ -392,27 +392,48 @@ async def health_check_api():
 async def login(username: str = Form(...), password: str = Form(...)):
     """تسجيل الدخول"""
     users = load_users()
-    
-    if username not in users:
-        raise HTTPException(status_code=401, detail="اسم المستخدم أو كلمة المرور غير صحيحة")
-    
-    user = users[username]
     password_hash = hashlib.sha256(password.encode()).hexdigest()
+    user_data = None
     
-    if user["password"] != password_hash:
+    # Check local first
+    if username in users:
+        user = users[username]
+        if user["password"] == password_hash:
+            user_data = {
+                "username": user["username"],
+                "name": user["name"],
+                "role": user["role"]
+            }
+    
+    # If not found or wrong password local, check Convex
+    if not user_data and convex_client:
+        try:
+            # Query users from Convex
+            all_users = convex_client.query("users:listUsers")
+            convex_user = next((u for u in all_users if u.get("username") == username), None)
+            if convex_user and convex_user.get("password") == password_hash:
+                user_data = {
+                    "username": convex_user["username"],
+                    "name": convex_user["name"],
+                    "role": convex_user.get("role", "employee")
+                }
+        except Exception as e:
+            print(f"Convex Auth Error: {e}")
+
+    if not user_data:
         raise HTTPException(status_code=401, detail="اسم المستخدم أو كلمة المرور غير صحيحة")
     
     # إنشاء جلسة
-    token = create_session(username, user["role"])
+    token = create_session(user_data["username"], user_data["role"])
     
     return {
         "token": token,
         "user": {
-            "username": user["username"],
-            "name": user["name"],
-            "role": user["role"],
-            "role_name": ROLES[user["role"]]["name"],
-            "permissions": ROLES[user["role"]]["permissions"]
+            "username": user_data["username"],
+            "name": user_data["name"],
+            "role": user_data["role"],
+            "role_name": ROLES.get(user_data["role"], {}).get("name", "موظف"),
+            "permissions": ROLES.get(user_data["role"], {}).get("permissions", ROLES["employee"]["permissions"])
         }
     }
 

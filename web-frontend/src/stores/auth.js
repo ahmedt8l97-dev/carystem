@@ -17,17 +17,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     async function login(username, password) {
-        // Simple hash for demo
-        const msgBuffer = new TextEncoder().encode(password);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('password', password);
 
-        const result = await convex.mutation(api.users.login, { username, passwordHash });
-        if (result.error) throw new Error(result.error);
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            body: formData
+        });
 
-        setUser({ ...result.user, token: result.token });
-        return result.user;
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Login failed');
+        }
+
+        const data = await res.json();
+        setUser({ ...data.user, token: data.token });
+        return data.user;
     }
 
     return { user, setUser, logout, login }
