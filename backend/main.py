@@ -203,6 +203,14 @@ except Exception as e:
     print(f"Error initializing Convex: {e}")
     convex_client = None
 
+def normalize_pn(pn):
+    arabic_digits = "٠١٢٣٤٥٦٧٨٩"
+    western_digits = "0123456789"
+    res = str(pn)
+    for a, w in zip(arabic_digits, western_digits):
+        res = res.replace(a, w)
+    return res
+
 def load_cache() -> dict:
     """تحميل المنتجات من Convex"""
     if not convex_client:
@@ -210,9 +218,17 @@ def load_cache() -> dict:
     try:
         # Get all products without filter to avoid issues with some Convex clients
         products = convex_client.query("products:getProducts", {})
-        # Convert list to dict keyed by product_number
-        # Use .get() to avoid KeyError if product_number is missing
-        return {str(p.get('product_number', '')): p for p in products if p.get('product_number') is not None}
+        
+        def normalize_pn(pn):
+            arabic_digits = "٠١٢٣٤٥٦٧٨٩"
+            western_digits = "0123456789"
+            res = str(pn)
+            for a, w in zip(arabic_digits, western_digits):
+                res = res.replace(a, w)
+            return res
+
+        # Convert list to dict keyed by normalized product_number
+        return {normalize_pn(p.get('product_number', '')): p for p in products if p.get('product_number') is not None}
     except Exception as e:
         print(f"Convex Query Error: {e}")
         return {}
@@ -763,6 +779,7 @@ async def update_product_status(
     session: dict = Depends(get_current_user)
 ):
     """تحديث حالة المنتج (تم بيع، تم بيع بالكامل، نفذ)"""
+    product_number = normalize_pn(product_number)
     cache = load_cache()
     
     if product_number not in cache:
@@ -808,6 +825,9 @@ async def update_product(
     session: dict = Depends(get_current_user)
 ):
     """تحديث منتج موجود"""
+    product_number = normalize_pn(product_number)
+    if new_product_number:
+        new_product_number = normalize_pn(new_product_number)
     
     # تحويل الأسعار من نص إلى رقم (مع إزالة الفواصل إن وجدت)
     try:
@@ -915,7 +935,7 @@ async def delete_product(
     session: dict = Depends(get_current_user)
 ):
     """حذف منتج - يُحذف من التليجرام والكاش"""
-    
+    product_number = normalize_pn(product_number)
     cache = load_cache()
     
     if product_number not in cache:

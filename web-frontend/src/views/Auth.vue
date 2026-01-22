@@ -91,7 +91,8 @@ async function handleSignup() {
       photo: photoUrl
     })
 
-    auth.setUser({ username: signupData.value.username, name: signupData.value.name, role: 'employee' })
+    // Log in automatically after signup to get a valid FastAPI session token
+    await auth.login(signupData.value.username, signupData.value.password)
     router.push('/')
   } catch (e) {
     error.value = e.message

@@ -36,5 +36,21 @@ export const useAuthStore = defineStore('auth', () => {
         return data.user;
     }
 
-    return { user, setUser, logout, login }
+    async function checkAuth() {
+        if (!user.value?.token) return false;
+        try {
+            const res = await fetch('/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${user.value.token}` }
+            });
+            if (!res.ok) {
+                logout();
+                return false;
+            }
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    return { user, setUser, logout, login, checkAuth }
 })
