@@ -60,10 +60,7 @@ function logout() {
             <span class="u-role">{{ auth.user?.role === 'admin' ? 'مدير' : 'موظف' }}</span>
           </div>
         </div>
-        <button @click="logout" class="footer-logout">
-          <LogOut :size="18" />
-          <span>تسجيل الخروج</span>
-        </button>
+<!-- Logout hidden as system is now free-access -->
       </div>
     </aside>
 

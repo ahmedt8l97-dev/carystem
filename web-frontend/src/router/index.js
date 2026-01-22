@@ -17,7 +17,7 @@ const router = createRouter({
             component: DashboardLayout,
             meta: { requiresAuth: true },
             children: [
-                { path: '', redirect: '/dashboard' },
+                { path: '', component: DashboardHome },
                 { path: 'dashboard', component: DashboardHome },
                 { path: 'inventory', component: Inventory },
                 { path: 'add', component: AddProduct },
@@ -28,18 +28,10 @@ const router = createRouter({
     ]
 })
 
-router.beforeEach(async (to, from, next) => {
-    const auth = useAuthStore()
-    if (to.meta.requiresAuth) {
-        const isValid = await auth.checkAuth()
-        if (!isValid) {
-            next('/auth')
-        } else {
-            next()
-        }
-    } else {
-        next()
-    }
+router.beforeEach((to, from, next) => {
+    const auth = useAuthStore();
+    auth.checkAuth(); // Ensure default user is set
+    next();
 })
 
 export default router

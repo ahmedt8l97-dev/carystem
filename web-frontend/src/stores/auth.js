@@ -16,41 +16,18 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.removeItem('convex_user')
     }
 
-    async function login(username, password) {
-        const formData = new FormData();
-        formData.append('username', username);
-        formData.append('password', password);
-
-        const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.detail || 'Login failed');
-        }
-
-        const data = await res.json();
-        setUser({ ...data.user, token: data.token });
-        return data.user;
-    }
-
     async function checkAuth() {
-        if (!user.value?.token) return false;
-        try {
-            const res = await fetch('/api/auth/me', {
-                headers: { 'Authorization': `Bearer ${user.value.token}` }
+        // Always return true since we disabled the login system
+        if (!user.value) {
+            setUser({
+                username: "admin",
+                name: "مدير النظام",
+                role: "admin",
+                token: "free_access"
             });
-            if (!res.ok) {
-                logout();
-                return false;
-            }
-            return true;
-        } catch {
-            return false;
         }
+        return true;
     }
 
-    return { user, setUser, logout, login, checkAuth }
+    return { user, setUser, logout, checkAuth }
 })

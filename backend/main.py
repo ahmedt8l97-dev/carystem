@@ -27,6 +27,7 @@ load_dotenv(dotenv_path=env_path)
 
 app = FastAPI(title="Car Stock - Hybrid Cloud", version="5.0.0")
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 # Mount Static Files from Vue Build
 # Path: ../web-frontend/dist
@@ -141,22 +142,18 @@ def check_permission(session: dict, permission: str) -> bool:
         return False
     return permission in ROLES[role]["permissions"]
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """الحصول على المستخدم الحالي"""
-    token = credentials.credentials
-    session = verify_session(token)
-    if not session:
-        raise HTTPException(status_code=401, detail="جلسة غير صالحة أو منتهية")
-    return session
+async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional)):
+    """تعطيل نظام التحقق وإعطاء صلاحية كاملة للمستخدم"""
+    # دائماً نرجع مستخدم بصفة مدير لضمان عمل كل الميزات
+    return {
+        "username": "admin",
+        "name": "مدير النظام",
+        "role": "admin"
+    }
 
 def require_permission(permission: str):
-    """التحقق من صلاحية معينة"""
+    """تخطي التحقق من الصلاحيات"""
     async def permission_checker(session: dict = Depends(get_current_user)):
-        if not check_permission(session, permission):
-            raise HTTPException(
-                status_code=403, 
-                detail=f"ليس لديك صلاحية {permission}"
-            )
         return session
     return permission_checker
 

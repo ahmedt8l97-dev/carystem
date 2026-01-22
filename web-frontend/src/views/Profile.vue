@@ -198,10 +198,7 @@ onMounted(() => {
           <Edit3 :size="18" />
           <span>تعديل الملف</span>
         </button>
-        <button @click="handleLogout" class="btn-icon-labeled logout">
-          <LogOut :size="18" />
-          <span>تسجيل الخروج</span>
-        </button>
+<!-- Logout hidden -->
       </div>
     </header>
 
