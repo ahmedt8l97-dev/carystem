@@ -199,13 +199,6 @@ def load_cache() -> dict:
         # Get all products without filter to avoid issues with some Convex clients
         products = convex_client.query("products:getProducts", {})
         
-        def normalize_pn(pn):
-            arabic_digits = "٠١٢٣٤٥٦٧٨٩"
-            western_digits = "0123456789"
-            res = str(pn)
-            for a, w in zip(arabic_digits, western_digits):
-                res = res.replace(a, w)
-            return res
 
         # Convert list to dict keyed by normalized product_number
         return {normalize_pn(p.get('product_number', '')): p for p in products if p.get('product_number') is not None}
@@ -301,7 +294,7 @@ async def upload_image_to_imgbb(image_content: bytes) -> str:
 # Telegram Operations
 # ================================
 
-async def send_to_telegram(product: dict, image_url: str = None, message_id: int = None):
+async def send_to_telegram(product: dict, image_url: str = None, message_id: int = None, is_retry: bool = False):
     """إرسال المنتج للتليجرام أو تحديثه وإرجاع message_id"""
     
     caption = f"""
@@ -331,31 +324,51 @@ async def send_to_telegram(product: dict, image_url: str = None, message_id: int
                     f"{TG_URL}/editMessageText",
                     json={
                         "chat_id": CHAT_ID,
-                        "message_id": message_id,
+                        "message_id": int(message_id),
                         "text": caption,
                         "parse_mode": "HTML"
                     }
                 )
+                
+                if resp.status_code == 200:
+                    return message_id
+                
+                error_data = resp.json()
+                error_desc = error_data.get("description", "")
+                
+                if "message is not modified" in error_desc:
+                    return message_id
+                
+                if resp.status_code == 429:
+                    retry_after = error_data.get("parameters", {}).get("retry_after", 30)
+                    print(f"Telegram Rate Limit (edit): Retry after {retry_after}s")
+                    return message_id # Keep using the same ID, hope it works next time
+                
+                # If editing failed for other reasons (message deleted?), send new if not already retrying
+                if not is_retry:
+                    return await send_to_telegram(product, image_url, is_retry=True)
+                return message_id
             else:
                 # إرسال رسالة جديدة
                 resp = await client.post(
                     f"{TG_URL}/sendMessage",
                     json={"chat_id": CHAT_ID, "text": caption, "parse_mode": "HTML"}
                 )
-            
-            if resp.status_code == 200:
-                result = resp.json()["result"]
-                # In editMessageText, result is the Message object or True
-                return message_id if message_id else result["message_id"]
-            else:
-                # If editing failed (message deleted?), send new
-                if message_id:
-                    return await send_to_telegram(product, image_url)
+                
+                if resp.status_code == 200:
+                    return resp.json()["result"]["message_id"]
+                
+                if resp.status_code == 429:
+                    error_data = resp.json()
+                    retry_after = error_data.get("parameters", {}).get("retry_after", 30)
+                    print(f"Telegram Rate Limit (send): Retry after {retry_after}s")
+                    return None
+                
                 raise Exception(f"Telegram API Error: {resp.text}")
                 
         except Exception as e:
             print(f"Telegram Error: {e}")
-            return None
+            return message_id if message_id else None
 
 async def delete_from_telegram(message_id: int):
     """حذف رسالة من التليجرام"""
@@ -767,15 +780,23 @@ async def update_product_status(
         raise HTTPException(status_code=404, detail="المنتج غير موجود")
     
     product = cache[product_number]
+    original_qty = product["quantity"]
     
+    changed = False
     if action == "sold_one":
         if product["quantity"] > 0:
             product["quantity"] -= 1
             product["status"] = "متوفر" if product["quantity"] > 0 else "نفذ"
+            changed = True
     elif action == "sold_all":
-        product["quantity"] = 0
-        product["status"] = "نفذ"
+        if product["quantity"] > 0:
+            product["quantity"] = 0
+            product["status"] = "نفذ"
+            changed = True
     
+    if not changed:
+        return product
+
     product["last_update"] = datetime.now().isoformat()
     
     try:
@@ -786,7 +807,9 @@ async def update_product_status(
     msg_id = product.get("message_id")
     if msg_id:
         try:
-            await send_to_telegram(product, product.get("image"), message_id=msg_id)
+            new_msg_id = await send_to_telegram(product, product.get("image"), message_id=msg_id)
+            if new_msg_id and new_msg_id != msg_id:
+                update_product_in_db(product_number, {"message_id": new_msg_id})
         except: pass
             
     return product
@@ -869,7 +892,9 @@ async def update_product(
     msg_id = product.get("message_id")
     if msg_id:
         try:
-            await send_to_telegram(product, product.get("image"), message_id=msg_id)
+            new_msg_id = await send_to_telegram(product, product.get("image"), message_id=msg_id)
+            if new_msg_id and new_msg_id != msg_id:
+                update_product_in_db(product_number, {"message_id": new_msg_id})
         except Exception as e:
             print(f"Telegram Update Error: {e}")
     

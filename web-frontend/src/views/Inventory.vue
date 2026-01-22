@@ -130,7 +130,13 @@ async function saveEdit() {
   }
 }
 
+const statusLoading = ref({})
+
 async function updateStatus(productNumber, action) {
+  const loadingKey = `${productNumber}-${action}`
+  if (statusLoading.value[loadingKey]) return
+  
+  statusLoading.value[loadingKey] = true
   try {
     const res = await fetch(`/api/update-status/${encodeURIComponent(productNumber)}?action=${action}`, {
       method: 'POST',
@@ -147,6 +153,8 @@ async function updateStatus(productNumber, action) {
     await load()
   } catch (e) {
     alert('حدث خطأ: ' + e.message)
+  } finally {
+    statusLoading.value[loadingKey] = false
   }
 }
 
@@ -248,17 +256,31 @@ onMounted(load)
 
             <div class="card-actions-premium">
               <div class="sell-actions-v2">
-                <button @click="updateStatus(p.product_number, 'sold_one')" class="btn-action sell-one">
-                   <span class="btn-icon">💰</span>
+                <button 
+                  @click="updateStatus(p.product_number, 'sold_one')" 
+                  class="btn-action sell-one"
+                  :disabled="statusLoading[`${p.product_number}-sold_one`]"
+                >
+                   <span class="btn-icon">
+                     <template v-if="statusLoading[`${p.product_number}-sold_one`]">⏳</template>
+                     <template v-else>💰</template>
+                   </span>
                    <div class="btn-text-content">
-                     <span class="btn-title">بيع قطعة</span>
+                     <span class="btn-title">{{ statusLoading[`${p.product_number}-sold_one`] ? 'جاري...' : 'بيع قطعة' }}</span>
                      <span class="btn-desc">-1 من المخزن</span>
                    </div>
                 </button>
-                <button @click="updateStatus(p.product_number, 'sold_all')" class="btn-action sell-all">
-                   <span class="btn-icon">🔥</span>
+                <button 
+                  @click="updateStatus(p.product_number, 'sold_all')" 
+                  class="btn-action sell-all"
+                  :disabled="statusLoading[`${p.product_number}-sold_all`]"
+                >
+                   <span class="btn-icon">
+                     <template v-if="statusLoading[`${p.product_number}-sold_all`]">⏳</template>
+                     <template v-else>🔥</template>
+                   </span>
                    <div class="btn-text-content">
-                     <span class="btn-title">بيع الكل</span>
+                     <span class="btn-title">{{ statusLoading[`${p.product_number}-sold_all`] ? 'جاري...' : 'بيع الكل' }}</span>
                      <span class="btn-desc">تصفية الكمية</span>
                    </div>
                 </button>
@@ -508,6 +530,13 @@ onMounted(load)
   transition: all 0.2s;
   text-align: right;
   background: rgba(255,255,255,0.05);
+}
+
+.btn-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .btn-action:active { 
