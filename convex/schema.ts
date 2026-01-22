@@ -38,4 +38,11 @@ export default defineSchema({
         total_products: v.number(),
         type: v.string(), // manual, daily, weekly
     }).index("by_created_at", ["created_at"]),
+
+    sessions: defineTable({
+        token: v.string(),
+        username: v.string(),
+        role: v.string(),
+        expires_at: v.string(),
+    }).index("by_token", ["token"]),
 });

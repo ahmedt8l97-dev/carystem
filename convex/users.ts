@@ -80,3 +80,50 @@ export const listUsers = query({
         return await ctx.db.query("users").collect();
     }
 });
+
+export const createSession = mutation({
+    args: {
+        token: v.string(),
+        username: v.string(),
+        role: v.string(),
+        expires_at: v.string(),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.insert("sessions", args);
+    }
+});
+
+export const verifySession = query({
+    args: { token: v.string() },
+    handler: async (ctx, args) => {
+        const session = await ctx.db
+            .query("sessions")
+            .withIndex("by_token", (q) => q.eq("token", args.token))
+            .first();
+
+        if (!session) return null;
+
+        // Check expiry
+        if (new Date(session.expires_at) < new Date()) {
+            return null;
+        }
+
+        return {
+            username: session.username,
+            role: session.role,
+        };
+    }
+});
+
+export const deleteSession = mutation({
+    args: { token: v.string() },
+    handler: async (ctx, args) => {
+        const session = await ctx.db
+            .query("sessions")
+            .withIndex("by_token", (q) => q.eq("token", args.token))
+            .first();
+        if (session) {
+            await ctx.db.delete(session._id);
+        }
+    }
+});

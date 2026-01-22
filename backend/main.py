@@ -109,47 +109,30 @@ def save_users(users: dict):
     with open(USERS_FILE, "w", encoding="utf-8") as f:
         json.dump(users, f, indent=2, ensure_ascii=False)
 
-def load_sessions() -> dict:
-    """تحميل الجلسات النشطة"""
-    if os.path.exists(SESSIONS_FILE):
-        try:
-            with open(SESSIONS_FILE, "r", encoding="utf-8") as f:
-                sessions = json.load(f)
-                # حذف الجلسات المنتهية
-                now = datetime.now()
-                active_sessions = {
-                    token: data for token, data in sessions.items()
-                    if datetime.fromisoformat(data["expires_at"]) > now
-                }
-                if len(active_sessions) != len(sessions):
-                    save_sessions(active_sessions)
-                return active_sessions
-        except:
-            pass
-    return {}
-
-def save_sessions(sessions: dict):
-    """حفظ الجلسات"""
-    with open(SESSIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump(sessions, f, indent=2, ensure_ascii=False)
-
 def create_session(username: str, role: str) -> str:
-    """إنشاء جلسة جديدة"""
+    """إنشاء جلسة جديدة في Convex"""
     token = secrets.token_urlsafe(32)
-    sessions = load_sessions()
-    sessions[token] = {
-        "username": username,
-        "role": role,
-        "created_at": datetime.now().isoformat(),
-        "expires_at": (datetime.now() + timedelta(days=7)).isoformat()
-    }
-    save_sessions(sessions)
+    expires_at = (datetime.now() + timedelta(days=7)).isoformat()
+    if convex_client:
+        try:
+            convex_client.mutation("users:createSession", {
+                "token": token,
+                "username": username,
+                "role": role,
+                "expires_at": expires_at
+            })
+        except Exception as e:
+            print(f"Error creating session in Convex: {e}")
     return token
 
 def verify_session(token: str) -> Optional[dict]:
-    """التحقق من الجلسة"""
-    sessions = load_sessions()
-    return sessions.get(token)
+    """التحقق من الجلسة عبر Convex"""
+    if not convex_client: return None
+    try:
+        return convex_client.query("users:verifySession", {"token": token})
+    except Exception as e:
+        print(f"Error verifying session in Convex: {e}")
+        return None
 
 def check_permission(session: dict, permission: str) -> bool:
     """التحقق من الصلاحية"""
@@ -454,12 +437,13 @@ async def login(username: str = Form(...), password: str = Form(...)):
     }
 
 @app.post("/api/auth/logout")
-async def logout(session: dict = Depends(get_current_user)):
+async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """تسجيل الخروج"""
-    # حذف الجلسة
-    sessions = load_sessions()
-    sessions = {k: v for k, v in sessions.items() if v.get("username") != session["username"]}
-    save_sessions(sessions)
+    token = credentials.credentials
+    if convex_client:
+        try:
+            convex_client.mutation("users:deleteSession", {"token": token})
+        except: pass
     
     return {"message": "تم تسجيل الخروج بنجاح"}
 
