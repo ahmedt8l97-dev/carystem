@@ -10,6 +10,9 @@ import {
   Database
 } from 'lucide-vue-next'
 
+import { useAuthStore } from '../stores/auth'
+const auth = useAuthStore()
+
 import { convex } from '../lib/convex'
 import { api } from '../../../convex/_generated/api'
 
@@ -34,7 +37,12 @@ async function triggerManualBackup() {
   manualLoading.value = true
   message.value = { text: '', type: '' }
   try {
-    const res = await fetch('/api/backup/manual', { method: 'POST' })
+    const res = await fetch('/api/backup/manual', { 
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${auth.user?.token}`
+      }
+    })
     const data = await res.json()
     
     if (res.ok) {

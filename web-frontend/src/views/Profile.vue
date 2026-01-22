@@ -69,7 +69,12 @@ async function triggerManualBackup() {
   manualBackupLoading.value = true
   message.value = { text: '', type: '' }
   try {
-    const res = await fetch('/api/backup/manual', { method: 'POST' })
+    const res = await fetch('/api/backup/manual', { 
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${auth.user?.token}`
+      }
+    })
     const data = await res.json()
     
     if (res.ok) {

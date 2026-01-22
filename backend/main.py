@@ -211,7 +211,8 @@ def load_cache() -> dict:
         # Get all products without filter to avoid issues with some Convex clients
         products = convex_client.query("products:getProducts", {})
         # Convert list to dict keyed by product_number
-        return {str(p['product_number']): p for p in products}
+        # Use .get() to avoid KeyError if product_number is missing
+        return {str(p.get('product_number', '')): p for p in products if p.get('product_number')}
     except Exception as e:
         print(f"Convex Query Error: {e}")
         return {}
@@ -230,28 +231,38 @@ def add_product_to_db(product: dict):
 
 def update_product_in_db(product_number: str, updates: dict):
     if not convex_client: return
-    all_products = convex_client.query("products:getProducts", {}) 
-    target = next((p for p in all_products if str(p['product_number']) == str(product_number)), None)
-    
-    if target:
-        patch = {}
-        # Only take valid fields for the updates object in Convex TS
-        valid_fields = ["product_number", "product_name", "car_name", "model_number", "type", "quantity", "price_iqd", "wholesale_price_iqd", "image", "status", "last_update", "message_id"]
-        for k in valid_fields:
-            if k in updates and updates[k] is not None:
-                val = updates[k]
-                if k == "quantity": val = int(val)
-                if k in ["price_iqd", "wholesale_price_iqd"]: val = float(val)
-                patch[k] = val
-                
-        convex_client.mutation("products:updateProduct", {"id": target["_id"], "updates": patch})
+    try:
+        all_products = convex_client.query("products:getProducts", {}) 
+        # Safely find target using .get()
+        target = next((p for p in all_products if str(p.get('product_number')) == str(product_number)), None)
+        
+        if target:
+            patch = {}
+            # Only take valid fields for the updates object in Convex TS
+            valid_fields = ["product_number", "product_name", "car_name", "model_number", "type", "quantity", "price_iqd", "wholesale_price_iqd", "image", "status", "last_update", "message_id"]
+            for k in valid_fields:
+                if k in updates and updates[k] is not None:
+                    val = updates[k]
+                    if k == "quantity": val = int(val)
+                    if k in ["price_iqd", "wholesale_price_iqd"]: val = float(val)
+                    patch[k] = val
+            
+            # Use target["_id"] directly, assuming it's a string ID or the client handles it
+            convex_client.mutation("products:updateProduct", {"id": target["_id"], "updates": patch})
+    except Exception as e:
+        print(f"Error in update_product_in_db: {e}")
+        raise e
 
 def delete_product_from_db(product_number: str):
     if not convex_client: return
-    all_products = convex_client.query("products:getProducts", {}) 
-    target = next((p for p in all_products if p['product_number'] == product_number), None)
-    if target:
-        convex_client.mutation("products:deleteProduct", {"id": target["_id"]})
+    try:
+        all_products = convex_client.query("products:getProducts", {}) 
+        target = next((p for p in all_products if str(p.get('product_number')) == str(product_number)), None)
+        if target:
+            convex_client.mutation("products:deleteProduct", {"id": target["_id"]})
+    except Exception as e:
+        print(f"Error in delete_product_from_db: {e}")
+        raise e
 
 
 # ================================

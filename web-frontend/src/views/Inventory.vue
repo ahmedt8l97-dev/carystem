@@ -9,6 +9,9 @@ import {
   X
 } from 'lucide-vue-next'
 import { compressImage } from '../lib/utils'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
 
 
 const products = ref([])
@@ -110,7 +113,10 @@ async function saveEdit() {
 
     const res = await fetch(`/api/products/${encodeURIComponent(p.product_number)}`, {
       method: 'PATCH',
-      body: formData
+      body: formData,
+      headers: {
+        'Authorization': `Bearer ${auth.user?.token}`
+      }
     })
     
     if (!res.ok) throw new Error('فشل التحديث')
@@ -128,6 +134,9 @@ async function updateStatus(productNumber, action) {
   try {
     const res = await fetch(`/api/update-status/${encodeURIComponent(productNumber)}?action=${action}`, {
       method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${auth.user?.token}`
+      }
     })
     
     if (!res.ok) {
@@ -145,7 +154,10 @@ async function removeProduct(productNumber) {
   if (!confirm('حذف المنتج من المخزون والتليجرام؟')) return
   try {
     const res = await fetch(`/api/products/${encodeURIComponent(productNumber)}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${auth.user?.token}`
+      }
     })
     if (!res.ok) throw new Error('فشل الحذف')
     await load()
