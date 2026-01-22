@@ -212,7 +212,7 @@ def load_cache() -> dict:
         products = convex_client.query("products:getProducts", {})
         # Convert list to dict keyed by product_number
         # Use .get() to avoid KeyError if product_number is missing
-        return {str(p.get('product_number', '')): p for p in products if p.get('product_number')}
+        return {str(p.get('product_number', '')): p for p in products if p.get('product_number') is not None}
     except Exception as e:
         print(f"Convex Query Error: {e}")
         return {}
@@ -239,7 +239,8 @@ def update_product_in_db(product_number: str, updates: dict):
         if target:
             patch = {}
             # Only take valid fields for the updates object in Convex TS
-            valid_fields = ["product_number", "product_name", "car_name", "model_number", "type", "quantity", "price_iqd", "wholesale_price_iqd", "image", "status", "last_update", "message_id"]
+            # EXCLUDING product_number because it's the identifier and might cause validation errors if sent in updates
+            valid_fields = ["product_name", "car_name", "model_number", "type", "quantity", "price_iqd", "wholesale_price_iqd", "image", "status", "last_update", "message_id"]
             for k in valid_fields:
                 if k in updates and updates[k] is not None:
                     val = updates[k]
@@ -660,7 +661,8 @@ async def create_product(
     quantity: int = Form(1),
     price_iqd: str = Form(...),
     wholesale_price_iqd: str = Form(...),
-    image: Optional[UploadFile] = File(None)
+    image: Optional[UploadFile] = File(None),
+    session: dict = Depends(get_current_user)
 ):
     """إضافة منتج جديد - الصور في ImgBB والبيانات في التليجرام"""
     
@@ -736,7 +738,8 @@ async def get_image(image_id: str):
 @app.post("/api/update-status/{product_number:path}")
 async def update_product_status(
     product_number: str, 
-    action: str = Query(...)
+    action: str = Query(...),
+    session: dict = Depends(get_current_user)
 ):
     """تحديث حالة المنتج (تم بيع، تم بيع بالكامل، نفذ)"""
     cache = load_cache()
@@ -780,7 +783,8 @@ async def update_product(
     price_iqd: str = Form(None),
     wholesale_price_iqd: str = Form(None),
     new_product_number: Optional[str] = Form(None, alias="product_number"),
-    image: Optional[UploadFile] = File(None)
+    image: Optional[UploadFile] = File(None),
+    session: dict = Depends(get_current_user)
 ):
     """تحديث منتج موجود"""
     
@@ -886,7 +890,8 @@ async def update_settings(
 
 @app.delete("/api/products/{product_number:path}")
 async def delete_product(
-    product_number: str
+    product_number: str,
+    session: dict = Depends(get_current_user)
 ):
     """حذف منتج - يُحذف من التليجرام والكاش"""
     
@@ -1086,7 +1091,7 @@ async def auto_backup_scheduler():
             await asyncio.sleep(3600)
 
 @app.post("/api/backup/manual")
-async def create_manual_backup():
+async def create_manual_backup(session: dict = Depends(get_current_user)):
     """إنشاء نسخة احتياطية يدوية"""
     filepath = create_backup("manual")
     
@@ -1101,7 +1106,7 @@ async def create_manual_backup():
         raise HTTPException(status_code=500, detail="فشل إنشاء النسخة الاحتياطية")
 
 @app.get("/api/backups/list")
-async def list_backups():
+async def list_backups(session: dict = Depends(get_current_user)):
     """عرض قائمة النسخ الاحتياطية"""
     try:
         backups = []
@@ -1282,7 +1287,7 @@ async def sync_from_telegram():
             raise HTTPException(status_code=500, detail=f"خطأ في المزامنة: {str(e)}")
 
 @app.get("/api/backup-status")
-async def backup_status():
+async def backup_status(session: dict = Depends(get_current_user)):
     """حالة النسخ الاحتياطي"""
     cache = load_cache()
     
