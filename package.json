@@ -1,0 +1,24 @@
+{
+    "name": "car-stock-system",
+    "version": "1.0.0",
+    "description": "Car Stock Management System with Convex Backend",
+    "scripts": {
+        "dev:backend": "npx convex dev",
+        "dev:frontend": "npm run dev --prefix web-frontend",
+        "dev:python": "cd backend && uvicorn main:app --reload --port 8000",
+        "dev": "node tools/setup_env.js && concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:python\"",
+        "build": "chmod +x render-build.sh && ./render-build.sh",
+        "build:prod": "chmod +x render-build.sh && ./render-build.sh",
+        "convex:deploy": "convex deploy",
+        "start": "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    },
+    "dependencies": {
+        "convex": "^1.11.0",
+        "dotenv": "^17.2.3"
+    },
+    "devDependencies": {
+        "concurrently": "^9.2.1",
+        "typescript": "^5.0.0",
+        "vite": "^7.3.1"
+    }
+}
